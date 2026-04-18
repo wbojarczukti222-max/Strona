@@ -1,0 +1,250 @@
+<!DOCTYPE html>
+<html lang="pl">
+<head>
+  <meta charset="UTF-8">
+  <title>Dabliu Apps</title>
+  <style>
+    body {
+      font-family: 'Segoe UI', sans-serif;
+      background: linear-gradient(135deg, #4facfe 0%, #3b82f6 30%, #2563eb 60%, #1e40af 100%);
+      margin: 0;
+      height: 100vh;
+      display: flex;
+      justify-content: center;
+      align-items: center;
+    }
+
+    .container {
+      width: 95%;
+      max-width: 1100px;
+      min-height: 600px;
+      background: white;
+      padding: 30px;
+      border-radius: 25px;
+      box-shadow: 0 20px 50px rgba(0,0,0,0.25);
+    }
+
+    h1 {
+      text-align: center;
+      margin-bottom: 25px;
+    }
+
+    .controls, .filters {
+      display: flex;
+      gap: 10px;
+      margin-bottom: 20px;
+      flex-wrap: wrap;
+      justify-content: center;
+      background: #f1f5f9;
+      padding: 15px;
+      border-radius: 15px;
+      box-shadow: inset 0 2px 5px rgba(0,0,0,0.05);
+    }
+
+    input, select, button {
+      padding: 12px;
+      border-radius: 12px;
+      border: 1px solid #ccc;
+      font-size: 15px;
+    }
+
+    button {
+      background: #4facfe;
+      color: white;
+      border: none;
+      cursor: pointer;
+      transition: 0.2s;
+    }
+
+    button:hover {
+      background: #00c6ff;
+      transform: scale(1.05);
+    }
+
+    #taskList {
+      margin-top: 10px;
+    }
+
+    .task {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      padding: 15px;
+      margin-bottom: 12px;
+      border-radius: 15px;
+      background: #f7f7f7;
+      font-size: 16px;
+      transition: 0.2s;
+    }
+
+    .task:hover {
+      transform: scale(1.01);
+    }
+
+    .done {
+      text-decoration: line-through;
+      color: gray;
+    }
+
+    .high { border-left: 8px solid red; }
+    .medium { border-left: 8px solid orange; }
+    .low { border-left: 8px solid green; }
+
+    .stats {
+      margin-top: 20px;
+      text-align: center;
+      font-size: 16px;
+      font-weight: bold;
+    }
+
+  </style>
+</head>
+<body>
+
+<div class="container">
+  <h1>Dabliu Apps - ToDo PRO</h1>
+
+  <div class="controls">
+    <input id="taskInput" placeholder="Nowe zadanie">
+    <select id="priority">
+      <option value="low">Niski</option>
+      <option value="medium">Średni</option>
+      <option value="high">Wysoki</option>
+    </select>
+    <button onclick="addTask()">Dodaj</button>
+    <button onclick="clearAll()">Wyczyść wszystko</button>
+  </div>
+
+  <div class="filters">
+    <input id="search" placeholder="Szukaj..." oninput="render()">
+    <select id="statusFilter" onchange="render()">
+      <option value="all">Wszystkie</option>
+      <option value="done">Zrobione</option>
+      <option value="todo">Do zrobienia</option>
+    </select>
+    <select id="priorityFilter" onchange="render()">
+      <option value="all">Wszystkie priorytety</option>
+      <option value="high">Wysoki</option>
+      <option value="medium">Średni</option>
+      <option value="low">Niski</option>
+    </select>
+  </div>
+
+  <div id="taskList"></div>
+
+  <div class="stats" id="stats"></div>
+</div>
+
+<script>
+let tasks = JSON.parse(localStorage.getItem('tasks')) || [];
+
+const statusFilterEl = document.getElementById('statusFilter');
+const priorityFilterEl = document.getElementById('priorityFilter');
+
+statusFilterEl.value = sessionStorage.getItem('filter') || 'all';
+
+function saveTasks() {
+  localStorage.setItem('tasks', JSON.stringify(tasks));
+}
+
+function saveFilter() {
+  sessionStorage.setItem('filter', statusFilterEl.value);
+}
+
+function addTask() {
+  const input = document.getElementById('taskInput');
+  const priority = document.getElementById('priority').value;
+
+  if (input.value.trim().length < 3) {
+    alert('Minimum 3 znaki');
+    return;
+  }
+
+  tasks.push({ id: Date.now(), text: input.value, done: false, priority });
+  input.value = '';
+
+  saveTasks();
+  render();
+}
+
+function toggleTask(id) {
+  tasks = tasks.map(t => t.id === id ? {...t, done: !t.done} : t);
+  saveTasks();
+  render();
+}
+
+function deleteTask(id) {
+  tasks = tasks.filter(t => t.id !== id);
+  saveTasks();
+  render();
+}
+
+function clearAll() {
+  if (confirm('Usunąć wszystkie zadania?')) {
+    tasks = [];
+    saveTasks();
+    render();
+  }
+}
+
+function render() {
+  const list = document.getElementById('taskList');
+  const stats = document.getElementById('stats');
+  const search = document.getElementById('search').value.toLowerCase();
+  const filter = statusFilterEl.value;
+  const priorityFilter = priorityFilterEl.value;
+
+  saveFilter();
+
+  list.innerHTML = '';
+
+  let filtered = tasks.filter(t => t.text.toLowerCase().includes(search));
+
+  if (filter === 'done') filtered = filtered.filter(t => t.done);
+  if (filter === 'todo') filtered = filtered.filter(t => !t.done);
+  if (priorityFilter !== 'all') filtered = filtered.filter(t => t.priority === priorityFilter);
+
+  filtered
+    .sort((a,b) => priorityValue(b.priority) - priorityValue(a.priority))
+    .forEach(task => {
+      const div = document.createElement('div');
+      div.className = `task ${task.priority}`;
+
+      const span = document.createElement('span');
+      span.textContent = `${task.text} (${task.priority})`;
+      if (task.done) span.classList.add('done');
+
+      const btns = document.createElement('div');
+
+      const doneBtn = document.createElement('button');
+      doneBtn.textContent = 'Zrobione';
+      doneBtn.onclick = () => toggleTask(task.id);
+
+      const delBtn = document.createElement('button');
+      delBtn.textContent = 'Usuń';
+      delBtn.onclick = () => deleteTask(task.id);
+
+      btns.appendChild(doneBtn);
+      btns.appendChild(delBtn);
+
+      div.appendChild(span);
+      div.appendChild(btns);
+
+      list.appendChild(div);
+    });
+
+  const total = tasks.length;
+  const done = tasks.filter(t => t.done).length;
+
+  stats.textContent = `Wszystkie: ${total} | Zrobione: ${done} | Do zrobienia: ${total - done}`;
+}
+
+function priorityValue(p) {
+  return { low: 1, medium: 2, high: 3 }[p];
+}
+
+render();
+</script>
+
+</body>
+</html>
